@@ -5,7 +5,15 @@ import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, deleteDoc } 
 
 /* Replace YOUR_PRODUCTION_FIREBASE_CONFIG with null or a fallback object.
    Prefer providing config via VITE_FIREBASE_CONFIG in .env.local (JSON string). */
-const YOUR_PRODUCTION_FIREBASE_CONFIG = null;
+const YOUR_PRODUCTION_FIREBASE_CONFIG = const firebaseConfig = {
+  apiKey: "AIzaSyCcRnbCodYrAqOkYYWoTc3fYRQZtYW1e_8",
+  authDomain: "deal-scout-7ea14.firebaseapp.com",
+  projectId: "deal-scout-7ea14",
+  storageBucket: "deal-scout-7ea14.firebasestorage.app",
+  messagingSenderId: "1088057852761",
+  appId: "1:1088057852761:web:9f3b128483113284b48248",
+  measurementId: "G-B2KE8YLQ62"
+};
 
 const envConfig = (typeof __firebase_config !== 'undefined' && __firebase_config)
   ? JSON.parse(__firebase_config)
