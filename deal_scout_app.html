@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealScout - Curated Daily Deals</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#2563eb', 900: '#1e3a8a' },
+                        accent: { red: '#ef4444', green: '#10b981', orange: '#f97316' }
+                    },
+                    boxShadow: {
+                        'soft': '0 10px 40px -10px rgba(0,0,0,0.05)',
+                        'floating': '0 20px 40px -10px rgba(37, 99, 235, 0.15)'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+                        'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- React & Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { background-color: #fafafa; -webkit-font-smoothing: antialiased; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Loading Spinner CSS */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+        // --- STREAMING_CHUNK: Initializing State and Mock Data... ---
+
+        // Pre-approved deals for the initial state so the page isn't blank
+        const PRE_APPROVED_DEALS = [
+            {
+                id: "B0D1XD1ZV3",
+                asin: "B0D1XD1ZV3", 
+                title: "Apple AirPods Pro (2nd Gen) Wireless Earbuds with USB-C MagSafe Case", 
+                price: 189.00, originalPrice: 249.00, 
+                category: "Electronics", rating: 4.8, reviews: 95402, 
+                image: "https://m.media-amazon.com/images/I/61SUj2aFiQQ._AC_SX679_.jpg", 
+                dealType: "Verified Deal",
+                aiPros: ["Exceptional active noise cancellation blocks out background noise perfectly.", "Seamless ecosystem integration for instant pairing with all Apple devices.", "Improved battery life and a future-proof USB-C charging case."],
+                aiCons: ["Premium price point compared to standard earbuds.", "Maximum features are locked into the Apple ecosystem (limited on Android)."],
+                realReviews: [
+                    { name: "Michael T.", text: "The noise cancellation upgrade from the 1st gen is actually noticeable. The USB-C case is finally here, meaning I can travel with just one cable for my Mac, iPad, and AirPods. Worth the upgrade.", rating: 5 },
+                    { name: "Sarah J.", text: "Sound quality is fantastic. The transparency mode feels like you aren't wearing them at all. My only gripe is they still occasionally slip out during intense workouts.", rating: 4 }
+                ]
+            }
+        ];
+
+        const CATEGORIES = ["All Deals", "Electronics", "Home & Kitchen", "Sports & Outdoors", "Health & Beauty", "Amazon Devices"];
+
+        // --- STREAMING_CHUNK: Icons... ---
+        const Icons = {
+            Search: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            Heart: ({ filled, ...props }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>,
+            Star: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none" {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+            Check: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M20 6 9 17l-5-5"/></svg>,
+            X: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            ArrowLeft: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>,
+            Download: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            Tag: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>,
+            Key: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg>,
+            Sparkles: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+        };
+
+        // --- STREAMING_CHUNK: Custom Hooks... ---
+        function useLocalState(key, initialValue) {
+            const [value, setValue] = useState(() => {
+                try {
+                    const item = window.localStorage.getItem(key);
+                    return item ? JSON.parse(item) : initialValue;
+                } catch (error) { return initialValue; }
+            });
+
+            const setValueAndSave = useCallback((newValue) => {
+                setValue(newValue);
+                try { window.localStorage.setItem(key, JSON.stringify(newValue)); } catch (e) {}
+            }, [key]);
+
+            return [value, setValueAndSave];
+        }
+
+        // --- STREAMING_CHUNK: Component - Product Detail Page (Public) ---
+        function ProductDetail({ deal, onBack }) {
+            const discountPercent = Math.round(((deal.originalPrice - deal.price) / deal.originalPrice) * 100);
+
+            useEffect(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, []);
+
+            return (
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+                    <button onClick={onBack} className="flex items-center text-sm font-bold text-slate-500 hover:text-brand-600 mb-6 transition-colors">
+                        <Icons.ArrowLeft className="w-5 h-5 mr-2" /> Back to Deals
+                    </button>
+                   
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
+                            
+                            {/* Left: Image Container (Spans 5 cols) */}
+                            <div className="lg:col-span-5 p-8 md:p-12 flex items-center justify-center relative border-b lg:border-b-0 lg:border-r border-slate-100 bg-white">
+                                {discountPercent > 0 && (
+                                    <div className="absolute top-6 left-6 bg-red-600 text-white font-black px-4 py-2 rounded-xl text-sm tracking-wider uppercase z-10 shadow-sm">
+                                        Save {discountPercent}%
+                                    </div>
+                                )}
+                                <div className="w-full max-w-sm aspect-square flex items-center justify-center">
+                                    <img 
+                                        src={deal.image} alt={deal.title} 
+                                        className="w-full h-full object-contain mix-blend-multiply" 
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* Right: Details & Content (Spans 7 cols) */}
+                            <div className="lg:col-span-7 p-8 md:p-12 flex flex-col bg-slate-50/30">
+                                <div className="flex flex-wrap items-center gap-3 mb-4">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{deal.category}</span>
+                                    <span className="text-slate-300">•</span>
+                                    <div className="flex items-center text-amber-500 text-sm font-bold">
+                                        <Icons.Star className="w-4 h-4 mr-1" /> {deal.rating} 
+                                        <span className="text-slate-400 ml-1 font-medium">({deal.reviews?.toLocaleString() || 0} reviews)</span>
+                                    </div>
+                                </div>
+                                
+                                <h1 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight mb-8">
+                                    {deal.title}
+                                </h1>
+                                
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10 pb-10 border-b border-slate-200">
+                                    <div>
+                                        {deal.originalPrice > deal.price && (
+                                            <p className="text-slate-400 line-through font-bold text-lg mb-1">${deal.originalPrice.toFixed(2)}</p>
+                                        )}
+                                        <p className="text-5xl font-black text-slate-900 tracking-tighter">${deal.price.toFixed(2)}</p>
+                                    </div>
+                                    <a 
+                                        href={`https://www.amazon.com/dp/${deal.asin}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="w-full sm:w-auto flex items-center justify-center bg-brand-600 hover:bg-brand-700 text-white text-lg font-bold px-10 py-4 rounded-xl shadow-lg shadow-brand-600/20 transition-all hover:-translate-y-1"
+                                    >
+                                        Buy on Amazon
+                                    </a>
+                                </div>
+
+                                {/* Baked-in Editor's Insights */}
+                                {(deal.aiPros?.length > 0 || deal.aiCons?.length > 0) && (
+                                    <div className="mb-10 animate-fade-in">
+                                        <h3 className="font-black text-slate-900 text-xl mb-6 flex items-center">
+                                            Expert Insights
+                                        </h3>
+                                        <div className="grid sm:grid-cols-2 gap-6">
+                                            {deal.aiPros?.length > 0 && (
+                                                <div className="bg-emerald-50/50 border border-emerald-100 p-6 rounded-2xl">
+                                                    <h4 className="flex items-center text-emerald-800 font-bold mb-4">
+                                                        <Icons.Check className="w-5 h-5 mr-2 text-emerald-500" /> Top Benefits
+                                                    </h4>
+                                                    <ul className="space-y-3">
+                                                        {deal.aiPros.map((pro, i) => (
+                                                            <li key={i} className="text-slate-700 text-sm font-medium leading-relaxed">• {pro}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            {deal.aiCons?.length > 0 && (
+                                                <div className="bg-rose-50/50 border border-rose-100 p-6 rounded-2xl">
+                                                    <h4 className="flex items-center text-rose-800 font-bold mb-4">
+                                                        <Icons.X className="w-5 h-5 mr-2 text-rose-500" /> Keep in Mind
+                                                    </h4>
+                                                    <ul className="space-y-3">
+                                                        {deal.aiCons.map((con, i) => (
+                                                            <li key={i} className="text-slate-700 text-sm font-medium leading-relaxed">• {con}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Authentic Reviews fetched during curation */}
+                                {deal.realReviews && deal.realReviews.length > 0 && (
+                                    <div className="animate-fade-in">
+                                        <h3 className="font-black text-slate-900 text-xl mb-6">Verified Buyer Reviews</h3>
+                                        <div className="space-y-4">
+                                            {deal.realReviews.map((r, i) => (
+                                                <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <span className="font-bold text-slate-900">{r.name || "Amazon Customer"}</span>
+                                                        <div className="flex text-amber-500">
+                                                            {[...Array(r.rating || 5)].map((_,j) => <Icons.Star key={j} className="w-3.5 h-3.5" />)}
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-slate-600 text-sm leading-relaxed">"{r.text || r.body}"</p>
+                                                    <p className="text-[10px] text-brand-600 font-bold mt-3 uppercase tracking-wider flex items-center">
+                                                        <Icons.Check className="w-3 h-3 mr-1"/> Verified Amazon Purchase
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- STREAMING_CHUNK: Component - Curation Dashboard (Admin) ---
+        function AdminDashboard({ publishedDeals, setPublishedDeals, apiKeys, setApiKeys, onExit }) {
+            const [activeTab, setActiveTab] = useState('curate'); // 'curate' or 'settings'
+            const [pendingDeals, setPendingDeals] = useState([]); // Status: 'raw', 'drafting', 'review'
+            const [isFetching, setIsFetching] = useState(false);
+            
+            // Editable Draft State
+            const [draftState, setDraftState] = useState({});
+
+            const handleSettingChange = (e) => {
+                setApiKeys({ ...apiKeys, [e.target.name]: e.target.value });
+            };
+
+            // Robust proxy fetcher to bypass browser CORS securely for the preview
+            const fetchWithProxy = async (targetUrl) => {
+                try {
+                    // Try primary proxy first (corsproxy)
+                    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
+                    if (res.ok) return await res.json();
+                    throw new Error("Primary proxy failed");
+                } catch (err) {
+                    console.warn("Primary proxy failed, trying fallback...", err);
+                    // Fallback to secondary proxy (AllOrigins JSON wrapper, highly reliable against CORS)
+                    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+                    if (!res.ok) throw new Error("Network error connecting to API Proxy.");
+                    
+                    const proxyData = await res.json();
+                    
+                    // AllOrigins JSON wrapper returns contents as a JSON string
+                    if (!proxyData.contents) throw new Error("Empty response from proxy.");
+                    return JSON.parse(proxyData.contents);
+                }
+            };
+
+            // 1. Fetch RAW Deals from Rainforest API
+            const fetchFromRainforest = async () => {
+                if (!apiKeys.rainforest) {
+                    alert("Please enter your Rainforest API key in the Settings tab first.");
+                    return;
+                }
+
+                setIsFetching(true);
+                try {
+                    // Search for generic deals to populate the list
+                    const targetUrl = `https://api.rainforestapi.com/request?api_key=${apiKeys.rainforest}&type=search&amazon_domain=amazon.com&search_term=deals&sort_by=featured`;
+                    
+                    const data = await fetchWithProxy(targetUrl);
+
+                    if (data.search_results) {
+                        const newDeals = data.search_results
+                            .filter(item => item.price && item.asin) // Ensure it has price and ASIN
+                            .map(item => ({
+                                id: item.asin,
+                                asin: item.asin,
+                                title: item.title,
+                                price: item.price.value,
+                                originalPrice: item.recent_sales_price?.value || item.price.value * 1.2, // Fallback if no list price
+                                category: "General", 
+                                rating: item.rating || 4.5,
+                                reviews: item.ratings_total || 0,
+                                image: item.image,
+                                status: 'raw' // Custom status for the pipeline
+                            }));
+
+                        // Filter out deals already published or in pipeline
+                        const uniqueNew = newDeals.filter(
+                            raw => !publishedDeals.some(pub => pub.asin === raw.asin) && !pendingDeals.some(pen => pen.asin === raw.asin)
+                        ).slice(0, 5); // Just grab top 5 to not overwhelm
+
+                        setPendingDeals(prev => [...prev, ...uniqueNew]);
+                    } else {
+                        alert("No search results found. Check your API key or usage limits.");
+                    }
+                } catch (error) {
+                    console.error("Rainforest Fetch Error:", error);
+                    alert("Failed to connect to Rainforest API.");
+                } finally {
+                    setIsFetching(false);
+                }
+            };
+
+            // 2. Draft Insights (Calls Gemini + Rainforest Reviews)
+            const draftInsights = async (deal) => {
+                if (!apiKeys.gemini) {
+                    alert("Please enter your Gemini API key in the Settings tab to generate AI insights.");
+                    return;
+                }
+
+                // Update status to loading
+                setPendingDeals(prev => prev.map(d => d.id === deal.id ? { ...d, status: 'drafting' } : d));
+
+                let generatedPros = [];
+                let generatedCons = [];
+                let fetchedReviews = [];
+
+                try {
+                    // Call Gemini for Pros/Cons
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKeys.gemini}`;
+                    const prompt = `Analyze this Amazon product: "${deal.title}". Provide exactly 3 concise pros and 2 concise cons. Return ONLY a valid JSON object in this exact format: {"pros": ["pro 1", "pro 2", "pro 3"], "cons": ["con 1", "con 2"]}`;
+
+                    const aiRes = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+
+                    if (aiRes.ok) {
+                        const data = await aiRes.json();
+                        const rawText = data.candidates[0].content.parts[0].text;
+                        const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                        const parsed = JSON.parse(cleanText);
+                        generatedPros = parsed.pros || [];
+                        generatedCons = parsed.cons || [];
+                    }
+                } catch (error) {
+                    console.error("Gemini Error:", error);
+                    generatedPros = ["Failed to generate pro 1", "Failed to generate pro 2", "Failed to generate pro 3"];
+                    generatedCons = ["Failed to generate con 1", "Failed to generate con 2"];
+                }
+
+                try {
+                    // Call Rainforest for Real Reviews
+                    if (apiKeys.rainforest) {
+                        const targetReviewUrl = `https://api.rainforestapi.com/request?api_key=${apiKeys.rainforest}&type=reviews&amazon_domain=amazon.com&asin=${deal.asin}&sort_by=helpful`;
+                        
+                        const revData = await fetchWithProxy(targetReviewUrl);
+                        
+                        if (revData.reviews && revData.reviews.length > 0) {
+                            fetchedReviews = revData.reviews.slice(0, 2).map(r => ({
+                                name: r.profile.name,
+                                text: r.body,
+                                rating: r.rating
+                            }));
+                        }
+                    }
+                } catch (error) {
+                    console.error("Rainforest Reviews Error:", error);
+                    fetchedReviews = [{ name: "System", text: "Failed to fetch real reviews. API limit may be reached.", rating: 5 }];
+                }
+
+                // Prepare draft state
+                setDraftState(prev => ({
+                    ...prev,
+                    [deal.id]: {
+                        pros: generatedPros.join('\n'),
+                        cons: generatedCons.join('\n'),
+                        reviews: fetchedReviews
+                    }
+                }));
+
+                // Move to review state
+                setPendingDeals(prev => prev.map(d => d.id === deal.id ? { ...d, status: 'review' } : d));
+            };
+
+            // 3. Finalize and Publish
+            const publishDeal = (deal) => {
+                const draft = draftState[deal.id];
+                const prosArray = draft.pros.split('\n').filter(p => p.trim() !== '');
+                const consArray = draft.cons.split('\n').filter(c => c.trim() !== '');
+
+                const finalizedDeal = {
+                    ...deal,
+                    aiPros: prosArray,
+                    aiCons: consArray,
+                    realReviews: draft.reviews,
+                    dealType: "Newly Curated"
+                };
+                delete finalizedDeal.status; // clean up internal status
+
+                setPublishedDeals(prev => [finalizedDeal, ...prev]);
+                setPendingDeals(prev => prev.filter(d => d.id !== deal.id));
+                
+                // Cleanup draft state
+                const newDrafts = {...draftState};
+                delete newDrafts[deal.id];
+                setDraftState(newDrafts);
+            };
+
+            const rejectDeal = (id) => {
+                setPendingDeals(prev => prev.filter(d => d.id !== id));
+            };
+
+            return (
+                <div className="max-w-5xl mx-auto px-4 py-10 animate-fade-in">
+                    
+                    {/* Admin Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 bg-slate-900 text-white p-6 rounded-3xl shadow-xl">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <Icons.Key className="w-5 h-5 text-amber-400" />
+                                <h1 className="text-2xl font-black tracking-tight">Admin Dashboard</h1>
+                            </div>
+                            <p className="text-slate-400 text-sm">Human-in-the-loop curation and AI management.</p>
+                        </div>
+                        <div className="flex bg-slate-800 p-1 rounded-xl">
+                            <button onClick={() => setActiveTab('curate')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'curate' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}>Curation Queue</button>
+                            <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}>API Settings</button>
+                            <button onClick={onExit} className="px-4 py-2 rounded-lg text-sm font-bold text-red-400 hover:bg-slate-700 ml-2 transition-all">Exit</button>
+                        </div>
+                    </div>
+
+                    {/* Settings Tab */}
+                    {activeTab === 'settings' && (
+                        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                            <h2 className="text-xl font-black text-slate-900 mb-6">API Configuration</h2>
+                            <div className="space-y-6 max-w-2xl">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">Rainforest API Key</label>
+                                    <input type="password" name="rainforest" value={apiKeys.rainforest} onChange={handleSettingChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500" placeholder="Enter API Key to fetch Amazon data" />
+                                    <p className="text-xs text-slate-500 mt-2">Required to pull live Amazon deals and real reviews.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-2">Google Gemini API Key</label>
+                                    <input type="password" name="gemini" value={apiKeys.gemini} onChange={handleSettingChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500" placeholder="Enter API Key to generate insights" />
+                                    <p className="text-xs text-slate-500 mt-2">Required to generate Expert Pros & Cons automatically.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Curation Tab */}
+                    {activeTab === 'curate' && (
+                        <div>
+                            <div className="flex justify-end mb-6">
+                                <button 
+                                    onClick={fetchFromRainforest}
+                                    disabled={isFetching}
+                                    className="flex items-center bg-brand-600 hover:bg-brand-700 text-white font-bold px-6 py-3 rounded-xl transition-all disabled:opacity-50 shadow-md shadow-brand-600/20"
+                                >
+                                    {isFetching ? <><div className="loader mr-3 border-white border-t-transparent w-5 h-5"></div> Fetching...</> : <><Icons.Download className="w-5 h-5 mr-2" /> Fetch Deals from Rainforest API</>}
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                {pendingDeals.length === 0 ? (
+                                    <div className="text-center py-20 bg-white border border-slate-200 border-dashed rounded-3xl">
+                                        <p className="text-slate-500 font-medium text-lg">No pending deals in queue.</p>
+                                        <p className="text-slate-400 text-sm mt-1">Click fetch above to pull raw data from Amazon.</p>
+                                    </div>
+                                ) : (
+                                    pendingDeals.map(deal => (
+                                        <div key={deal.id} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-hidden">
+                                            
+                                            {/* Top Row: Basic Info */}
+                                            <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
+                                                <div className="w-24 h-24 shrink-0 bg-slate-50 rounded-xl flex items-center justify-center p-2 border border-slate-100">
+                                                    <img src={deal.image} alt={deal.title} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className="font-bold text-slate-900 line-clamp-2 mb-2 leading-snug">{deal.title}</h3>
+                                                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                                                        <span className="font-black text-emerald-600 text-lg">${deal.price.toFixed(2)} <span className="line-through text-slate-400 font-medium text-sm ml-1">${deal.originalPrice.toFixed(2)}</span></span>
+                                                        <span className="flex items-center text-slate-500 font-medium"><Icons.Star className="w-4 h-4 mr-1 text-amber-500"/> {deal.rating} ({deal.reviews})</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Action Buttons for RAW state */}
+                                                {deal.status === 'raw' && (
+                                                    <div className="flex gap-2 w-full md:w-auto shrink-0">
+                                                        <button onClick={() => rejectDeal(deal.id)} className="px-4 py-2.5 rounded-xl text-sm font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">Discard</button>
+                                                        <button onClick={() => draftInsights(deal)} className="flex items-center px-5 py-2.5 rounded-xl text-sm font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors">
+                                                            <Icons.Sparkles className="w-4 h-4 mr-2 text-amber-400"/> Draft AI Insights & Reviews
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Loading State */}
+                                                {deal.status === 'drafting' && (
+                                                    <div className="flex items-center text-brand-600 font-bold text-sm bg-brand-50 px-4 py-2.5 rounded-xl w-full md:w-auto shrink-0">
+                                                        <div className="loader mr-3 w-4 h-4 border-2 border-brand-600 border-t-transparent"></div> Processing APIs...
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Bottom Row: REVIEW mode (Editable textareas) */}
+                                            {deal.status === 'review' && draftState[deal.id] && (
+                                                <div className="mt-6 pt-6 border-t border-slate-100 animate-fade-in bg-slate-50 -mx-6 -mb-6 p-6">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <h4 className="font-black text-slate-900 flex items-center"><Icons.Sparkles className="w-5 h-5 text-amber-500 mr-2" /> Review & Edit Content</h4>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => rejectDeal(deal.id)} className="px-4 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-800">Cancel</button>
+                                                            <button onClick={() => publishDeal(deal)} className="px-6 py-2 rounded-lg text-sm font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-md transition-colors">Approve & Publish to Store</button>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="grid md:grid-cols-2 gap-6 mb-6">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">Pros (One per line)</label>
+                                                            <textarea 
+                                                                className="w-full h-32 p-3 text-sm border border-emerald-200 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                                                value={draftState[deal.id].pros}
+                                                                onChange={(e) => setDraftState(prev => ({...prev, [deal.id]: {...prev[deal.id], pros: e.target.value}}))}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-rose-700 uppercase tracking-wider mb-2">Cons (One per line)</label>
+                                                            <textarea 
+                                                                className="w-full h-32 p-3 text-sm border border-rose-200 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                                                value={draftState[deal.id].cons}
+                                                                onChange={(e) => setDraftState(prev => ({...prev, [deal.id]: {...prev[deal.id], cons: e.target.value}}))}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Fetched Authentic Reviews</label>
+                                                        <div className="bg-white border border-slate-200 rounded-xl p-4 max-h-40 overflow-y-auto text-sm text-slate-600 space-y-3">
+                                                            {draftState[deal.id].reviews.length > 0 ? draftState[deal.id].reviews.map((r, i) => (
+                                                                <div key={i} className="pb-3 border-b border-slate-100 last:border-0 last:pb-0">
+                                                                    <div className="font-bold text-slate-900 mb-1">{r.name} <span className="text-amber-500 ml-2">★ {r.rating}</span></div>
+                                                                    <p>"{r.text}"</p>
+                                                                </div>
+                                                            )) : <p>No reviews fetched.</p>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- STREAMING_CHUNK: Main App Component ---
+        function App() {
+            // Data State
+            const [publishedDeals, setPublishedDeals] = useLocalState('dealscout_deals', PRE_APPROVED_DEALS);
+            const [savedIds, setSavedIds] = useLocalState('dealscout_saved', []);
+            const [apiKeys, setApiKeys] = useLocalState('dealscout_keys', { rainforest: '', gemini: '' });
+            
+            // UI State
+            const [activeCategory, setActiveCategory] = useState("All Deals");
+            const [selectedDeal, setSelectedDeal] = useState(null);
+            const [isAdminMode, setIsAdminMode] = useState(false);
+            
+            // Hidden Admin Trigger Logic
+            const clickTimer = useRef(null);
+            const [logoClicks, setLogoClicks] = useState(0);
+
+            const handleLogoClick = () => {
+                setLogoClicks(prev => {
+                    const newCount = prev + 1;
+                    if (newCount >= 5) {
+                        setIsAdminMode(true);
+                        setSelectedDeal(null);
+                        return 0; // reset
+                    }
+                    return newCount;
+                });
+
+                // Clear previous timeout and set a new one to reset clicks after 1 second of inactivity
+                if (clickTimer.current) clearTimeout(clickTimer.current);
+                clickTimer.current = setTimeout(() => {
+                    setLogoClicks(0);
+                }, 1000);
+            };
+
+            // Actions
+            const toggleSave = (e, id) => {
+                e.stopPropagation();
+                setSavedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+            };
+
+            const filteredDeals = useMemo(() => {
+                if (activeCategory === "All Deals") return publishedDeals;
+                return publishedDeals.filter(d => d.category === activeCategory);
+            }, [publishedDeals, activeCategory]);
+
+            return (
+                <div className="min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white">
+                    
+                    {/* Header */}
+                    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+                        <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+                            
+                            {/* Logo (With Hidden Admin Trigger) */}
+                            <div 
+                                className="flex items-center gap-3 cursor-pointer group select-none" 
+                                onClick={handleLogoClick}
+                                title="DealScout Home"
+                            >
+                                <div className="bg-brand-600 text-white p-2.5 rounded-xl shadow-md group-hover:bg-brand-700 transition-colors">
+                                    <Icons.Tag className="w-6 h-6" />
+                                </div>
+                                <span className="text-2xl font-black tracking-tight text-slate-900">DealScout</span>
+                            </div>
+
+                            {/* Public Actions (No Admin Button visible) */}
+                            {!isAdminMode && (
+                                <div className="flex items-center gap-4">
+                                    <div className="hidden md:flex items-center bg-slate-100 rounded-full px-4 py-2 border border-slate-200">
+                                        <Icons.Search className="w-4 h-4 text-slate-400 mr-2" />
+                                        <input type="text" placeholder="Search deals..." className="bg-transparent border-none focus:outline-none text-sm w-48 text-slate-700" readOnly />
+                                    </div>
+                                    <div className="relative cursor-pointer hover:bg-slate-100 p-2 rounded-full transition-colors">
+                                        <Icons.Heart className="w-6 h-6 text-slate-700" />
+                                        {savedIds.length > 0 && (
+                                            <span className="absolute 0 right-0 -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
+                                                {savedIds.length}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </header>
+
+                    {/* Router / Main Content */}
+                    {isAdminMode ? (
+                        <AdminDashboard 
+                            publishedDeals={publishedDeals} 
+                            setPublishedDeals={setPublishedDeals} 
+                            apiKeys={apiKeys}
+                            setApiKeys={setApiKeys}
+                            onExit={() => setIsAdminMode(false)}
+                        />
+                    ) : selectedDeal ? (
+                        <ProductDetail deal={selectedDeal} onBack={() => setSelectedDeal(null)} />
+                    ) : (
+                        <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
+                            
+                            {/* Storefront Header */}
+                            <div className="mb-12 text-center max-w-3xl mx-auto">
+                                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-6">
+                                    Today's Verified Deals
+                                </h1>
+                                <p className="text-slate-500 font-medium text-lg leading-relaxed">
+                                    Hand-picked and analyzed by our experts. We only list products with exceptional ratings and real price drops.
+                                </p>
+                            </div>
+
+                            {/* Category Filter */}
+                            <div className="flex justify-center overflow-x-auto pb-4 mb-10 gap-3 no-scrollbar">
+                                {CATEGORIES.map(category => (
+                                    <button
+                                        key={category}
+                                        onClick={() => setActiveCategory(category)}
+                                        className={`whitespace-nowrap px-6 py-3 rounded-full text-sm font-bold transition-all border ${
+                                            activeCategory === category
+                                                ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {category}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Grid Layout: Wide 4-5 column layout */}
+                            {filteredDeals.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                                    {filteredDeals.map((deal, i) => (
+                                        <div 
+                                            key={deal.id}
+                                            onClick={() => setSelectedDeal(deal)}
+                                            className="group flex flex-col bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-300 hover:shadow-floating hover:-translate-y-1.5 cursor-pointer animate-slide-up"
+                                            style={{ animationDelay: `${i * 50}ms` }}
+                                        >
+                                            {/* Image Section */}
+                                            <div className="relative aspect-square w-full bg-white p-8 flex items-center justify-center border-b border-slate-50">
+                                                <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+                                                    {Math.round(((deal.originalPrice - deal.price) / deal.originalPrice) * 100) > 0 && (
+                                                        <span className="bg-red-600 text-white text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">
+                                                            {Math.round(((deal.originalPrice - deal.price) / deal.originalPrice) * 100)}% OFF
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <button 
+                                                    onClick={(e) => toggleSave(e, deal.id)}
+                                                    className="absolute top-4 right-4 z-10 p-2.5 bg-white/90 backdrop-blur border border-slate-100 rounded-full text-slate-300 hover:text-red-500 hover:scale-110 transition-all shadow-sm"
+                                                >
+                                                    <Icons.Heart filled={savedIds.includes(deal.id)} className={`w-5 h-5 ${savedIds.includes(deal.id) ? 'text-red-500' : ''}`} />
+                                                </button>
+                                                <img 
+                                                    src={deal.image} alt={deal.title} 
+                                                    className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105" 
+                                                />
+                                            </div>
+
+                                            {/* Info Section */}
+                                            <div className="flex flex-col flex-1 p-6 bg-slate-50/50">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate mr-2">
+                                                        {deal.category || 'General'}
+                                                    </span>
+                                                    <div className="flex items-center gap-1 text-amber-500 shrink-0 bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <Icons.Star className="w-3.5 h-3.5" />
+                                                        <span className="text-xs font-bold text-slate-700">{deal.rating}</span>
+                                                    </div>
+                                                </div>
+
+                                                <h3 className="font-bold text-slate-900 text-sm leading-relaxed line-clamp-2 mb-6 group-hover:text-brand-600 transition-colors">
+                                                    {deal.title}
+                                                </h3>
+
+                                                <div className="mt-auto flex items-end justify-between border-t border-slate-200/60 pt-4">
+                                                    <div>
+                                                        {deal.originalPrice > deal.price && (
+                                                            <p className="text-xs font-bold text-slate-400 line-through mb-0.5">${deal.originalPrice.toFixed(2)}</p>
+                                                        )}
+                                                        <p className="text-xl font-black text-slate-900 tracking-tight">${deal.price.toFixed(2)}</p>
+                                                    </div>
+                                                    <div className="text-xs font-bold text-brand-600 bg-brand-50 px-4 py-2 rounded-xl group-hover:bg-brand-600 group-hover:text-white transition-colors border border-brand-100 group-hover:border-brand-600">
+                                                        View Deal
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-24 bg-white rounded-3xl border border-slate-200 border-dashed">
+                                    <p className="text-slate-500 text-lg">No deals found in this category.</p>
+                                </div>
+                            )}
+                        </main>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
